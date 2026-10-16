@@ -9,35 +9,35 @@
 ## Окно и раскладка
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |
 |---|---|---|---|---|---|
-| L1 | Заголовок «имя — PaintRS», «Без имени» | ✓ | todo | 1 | file-menu.md |
+| L1 | Заголовок «имя — PaintRS», «Без имени» | ✓ | done | 1 | file-menu.md |
 | L2 | «*» при несохранённых изменениях | ✓ (нет) | diff | 1 | DIFFS.md |
-| L3 | Строка меню File/Edit/View + Save/Undo/Redo | ✓ | todo | 1 | layout.md |
-| L4 | Лента: группы и порядок (Selection, Image, Tools, Brushes, Shapes, Colors, Layers) | ✓ | todo | 1 | layout.md |
+| L3 | Строка меню File/Edit/View + Save/Undo/Redo | ✓ | done (пункты будущих этапов неактивны) | 1 | layout.md |
+| L4 | Лента: группы и порядок (Selection, Image, Tools, Brushes, Shapes, Colors, Layers) | ✓ | done (раскладка; действия — по этапам) | 1 | layout.md |
 | L5 | Свернуть/автоскрытие ленты | м | todo | 9 | view.md |
-| L6 | Рабочая область, холст по центру, рамка | ✓ | todo | 1 | layout.md |
+| L6 | Рабочая область, холст по центру, рамка | ✓ | done | 1 | layout.md |
 | L7 | 8 ручек размера холста | ✓ | todo | 7 | image-menu.md |
 | L8 | Боковые плавающие ползунки (Size/Opacity/Tolerance) | ✓ | todo | 2 | tools.md |
-| L9 | Строка состояния: курсор, выделение, размер, размер файла, масштаб | ✓ | todo | 1 | statusbar.md |
-| L10 | Страница настроек (тема и др.) | ✓ | todo | 10 | dialogs.md |
-| L11 | Тёмная/светлая/системная тема | ✓ | todo | 10 | — |
+| L9 | Строка состояния: курсор, выделение, размер, размер файла, масштаб | ✓ | done (размер выделения — этап 5) | 1 | statusbar.md |
+| L10 | Страница настроек (тема и др.) | ✓ | done (тема, язык, сглаживание) | 10 | dialogs.md |
+| L11 | Тёмная/светлая/системная тема | ✓ | done | 10 | — |
 | L12 | Локализация RU/EN | — | todo | 10 | — |
 | L13 | DPI-масштабирование интерфейса | — | todo | 1, 9 | — |
 
 ## Вид
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |
 |---|---|---|---|---|---|
-| V1 | Масштаб 10–1000%, шаги 10/25/50 | ✓ | todo | 1 | view.md |
-| V2 | Пресеты 1000…12.5% в списке, ввод своего значения | ✓ | todo | 1 | view.md |
-| V3 | Fit to window | ✓ | todo | 1 | view.md |
-| V4 | Ctrl+0 / Ctrl+PgUp / Ctrl+PgDn | ✓ | todo | 1 | shortcuts.md |
-| V5 | Ctrl+колесо, колесо, Shift+колесо | — | todo | 1 | — |
+| V1 | Масштаб 10–1000%, шаги 10/25/50 | ✓ | done (тест zoom::steps_match_the_original) | 1 | view.md |
+| V2 | Пресеты 1000…12.5% в списке, ввод своего значения | ✓ | done | 1 | view.md |
+| V3 | Fit to window | ✓ | done | 1 | view.md |
+| V4 | Ctrl+0 / Ctrl+PgUp / Ctrl+PgDn | ✓ | done | 1 | shortcuts.md |
+| V5 | Ctrl+колесо, колесо, Shift+колесо | — | done (шаг на щелчок колеса, привязка к курсору) | 1 | — |
 | V6 | Линейки Ctrl+R (деления 10/100) | ✓ | todo | 9 | view.md |
 | V7 | Сетка Ctrl+G (каждые 10 px) | ✓ | todo | 9 | view.md |
-| V8 | Полный экран F11 | м | todo | 9 | view.md |
+| V8 | Полный экран F11 | м | done | 9 | view.md |
 | V9 | Миниатюра (Thumbnail) | — | todo | 9 | view.md |
-| V10 | Шахматка прозрачности 8×8 | ✓ | todo | 1 | view.md |
-| V11 | Сглаживание отображения авто/всегда/никогда, сетка пикселей ≥800% | — (расширение) | diff | 1, 9 | DIFFS.md |
-| V12 | Скрыть строку состояния | м | todo | 9 | view.md |
+| V10 | Шахматка прозрачности 8×8 | ✓ | done (свои оттенки) | 1 | view.md |
+| V11 | Сглаживание отображения авто/всегда/никогда, сетка пикселей ≥800% | — (расширение) | diff, done | 1, 9 | DIFFS.md |
+| V12 | Скрыть строку состояния | м | done | 9 | view.md |
 
 ## Инструменты
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |
@@ -145,15 +145,15 @@
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |
 |---|---|---|---|---|---|
 | F1 | New/Open/Save/Save as (меню форматов) | ✓ | todo | 1, 8 | file-menu.md |
-| F2 | PNG RGBA + 96 DPI | ✓ | todo | 1 | file-menu.md |
+| F2 | PNG RGBA + 96 DPI | ✓ | done (тест io::png_has_96_dpi) | 1 | file-menu.md |
 | F3 | JPEG без диалога, q≈94, 4:2:0 | ✓ | todo | 8 | file-menu.md |
 | F4 | BMP, GIF, TIFF, ICO, WebP | — | todo | 8 | file-menu.md |
 | F5 | «Сохранить сведённым?» для многослойного | ✓ | todo | 8 | dialogs.md |
-| F6 | Вопрос о несохранённых изменениях | ✓ | todo | 1 | dialogs.md |
-| F7 | Новый холст = последний размер; Default = 0,6 × экран | ✓ | todo | 1 | file-menu.md |
+| F6 | Вопрос о несохранённых изменениях | ✓ | done | 1 | dialogs.md |
+| F7 | Новый холст = последний размер; Default = 0,6 × экран | ✓ | done (Default — этап 7) | 1 | file-menu.md |
 | F8 | Проект со слоями (Save as project) | м | diff (свой формат) | 8 | DIFFS.md |
-| F9 | Недавние файлы | м | todo | 8 | file-menu.md |
-| F10 | Drag-and-drop, аргумент командной строки | — | todo | 8 | — |
+| F9 | Недавние файлы | м | done | 8 | file-menu.md |
+| F10 | Drag-and-drop, аргумент командной строки | — | done | 8 | — |
 | F11 | Печать / предпросмотр / параметры страницы (или PDF) | м | todo | 10 | file-menu.md |
 | F12 | Import to canvas → From a file | м | todo | 8 | file-menu.md |
 
@@ -161,7 +161,7 @@
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |
 |---|---|---|---|---|---|
 | H1 | Undo/Redo Ctrl+Z/Ctrl+Y | ✓ | todo | 2 | shortcuts.md |
-| H2 | Глубина ≈100 шагов (наблюдалось 101) | ✓ | todo | 2 | — |
+| H2 | Глубина ≈100 шагов (наблюдалось 101) | ✓ | done в ядре (тест history::limit_is_respected) | 2 | — |
 | H3 | Создание слоя — не в истории; скрытие — в истории | ✓ | todo | 8 | layers.md |
 
 ## Вне рамок (skip)

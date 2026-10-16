@@ -1,0 +1,16 @@
+[package]
+name = "paint-ui"
+description = "PaintRS user interface (egui): ribbon, canvas widget, dialogs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+paint-core.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
+bytemuck.workspace = true
+serde.workspace = true
+rfd.workspace = true
+tracing.workspace = true

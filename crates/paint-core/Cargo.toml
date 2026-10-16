@@ -1,0 +1,12 @@
+[package]
+name = "paint-core"
+description = "PaintRS core: document, raster, tools, history, file formats (no GUI)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+image = { workspace = true, features = ["png", "jpeg", "bmp", "gif", "tiff", "ico", "webp"] }
+png.workspace = true
+thiserror.workspace = true

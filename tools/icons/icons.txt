@@ -1,0 +1,10 @@
+# Lucide icon names used by PaintRS (https://lucide.dev). One per line.
+# After editing run: python tools/icons/build_icons.py <path-to-lucide-static-package>
+save save-all undo-2 redo-2 settings file file-plus folder-open folder clock image image-plus file-image printer log-out
+square-dashed lasso lasso-select scan blend trash-2 crop rotate-cw rotate-ccw refresh-cw rotate-cw-square flip-horizontal-2 flip-vertical-2 scaling move-diagonal-2 expand
+pencil paint-bucket type eraser pipette zoom-in zoom-out search brush paintbrush paintbrush-vertical pen-tool spray-can highlighter pencil-line droplets feather pen-line
+palette plus minus layers layers-2 eye eye-off copy merge combine arrow-up arrow-down arrow-down-to-line mouse-pointer-2 square frame hard-drive maximize minimize
+ruler grid-3x3 picture-in-picture panel-top panel-bottom bold italic underline strikethrough align-left align-center align-right chevron-down chevron-right chevron-up chevron-left
+check x info triangle-alert circle-alert sun moon monitor languages keyboard scissors clipboard-paste clipboard-copy square-pen square-dashed-mouse-pointer
+arrow-left contrast droplet droplet-off sparkles rectangle-horizontal circle square-round-corner pentagon hexagon triangle diamond star heart zap
+fullscreen shrink move hand ellipsis menu panel-top-close app-window paint-roller swatch-book wand squircle grip-horizontal fold-horizontal
