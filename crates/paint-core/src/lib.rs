@@ -1,6 +1,7 @@
 //! PaintRS core: document model, raster operations, history and file formats.
 //! Has no GUI dependencies so it can be tested and reused (CLI, WASM).
 
+pub mod brush;
 pub mod color;
 pub mod document;
 pub mod draw;

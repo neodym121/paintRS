@@ -4,9 +4,10 @@
 use egui::{
     Align2, Color32, CursorIcon, Id, Key, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2,
 };
+use paint_core::brush::BrushStroke;
 use paint_core::draw::{flood_region, snap_45, EraseMode, EraserStroke, PencilStroke};
 use paint_core::tool::{size_for_position, BrushKind, Tool, SIZE_POSITIONS};
-use paint_core::{zoom, IRect, PixelRecorder, Rgba};
+use paint_core::{zoom, PixelRecorder, Rgba};
 
 use crate::canvas::CanvasGeom;
 use crate::editor::Editor;
@@ -70,6 +71,7 @@ pub enum SliderId {
 enum StrokeTool {
     Pencil(PencilStroke),
     Eraser(EraserStroke),
+    Brush(Box<BrushStroke>),
 }
 
 pub(crate) struct ActiveStroke {
@@ -79,26 +81,24 @@ pub(crate) struct ActiveStroke {
     start: (i32, i32),
     last: (i32, i32),
     label: &'static str,
+    /// Time of the last airbrush tick.
+    ticked: std::time::Instant,
 }
 
-impl ActiveStroke {
-    fn bounds(&self, x: i32, y: i32) -> IRect {
-        match &self.tool {
-            StrokeTool::Pencil(s) => s.segment_bounds(x, y),
-            StrokeTool::Eraser(s) => s.segment_bounds(x, y),
-        }
-    }
-}
-
-/// Pointer state of one frame, read once from egui's input.
+/// Pointer events of one frame in the order they happened, plus the state at the end of it.
 struct PointerFrame {
-    pressed: Option<PointerButton>,
-    moves: Vec<Pos2>,
+    events: Vec<PointerEvent>,
     hover: Option<Pos2>,
     shift: bool,
     space: bool,
     primary_down: bool,
     secondary_down: bool,
+}
+
+enum PointerEvent {
+    Move(Pos2),
+    Press(Pos2, PointerButton),
+    Release(PointerButton),
 }
 
 impl Editor {
@@ -109,7 +109,8 @@ impl Editor {
 
     /// Handles pointer input on the canvas for the active tool. `blocked` are floating panels
     /// over the canvas; `popup_was_open` is true when a menu was open at the start of the frame
-    /// (the click that closes a menu must not draw).
+    /// (the click that closes a menu must not draw). Events are handled in the order they came,
+    /// so a release and the next press within one frame make two separate strokes.
     pub(crate) fn canvas_input(
         &mut self,
         ui: &egui::Ui,
@@ -119,14 +120,17 @@ impl Editor {
         popup_was_open: bool,
     ) {
         let f = ui.input(|i| PointerFrame {
-            pressed: [PointerButton::Primary, PointerButton::Secondary]
-                .into_iter()
-                .find(|b| i.pointer.button_pressed(*b)),
-            moves: i
+            events: i
                 .events
                 .iter()
                 .filter_map(|e| match e {
-                    egui::Event::PointerMoved(p) => Some(*p),
+                    egui::Event::PointerMoved(p) => Some(PointerEvent::Move(*p)),
+                    egui::Event::PointerButton { pos, button, pressed: true, .. } => {
+                        Some(PointerEvent::Press(*pos, *button))
+                    }
+                    egui::Event::PointerButton { button, pressed: false, .. } => {
+                        Some(PointerEvent::Release(*button))
+                    }
                     _ => None,
                 })
                 .collect(),
@@ -136,9 +140,9 @@ impl Editor {
             primary_down: i.pointer.button_down(PointerButton::Primary),
             secondary_down: i.pointer.button_down(PointerButton::Secondary),
         });
-        let over_viewport =
-            f.hover.is_some_and(|p| geom.viewport.contains(p) && !blocked.iter().any(|r| r.contains(p)))
-                && resp.contains_pointer();
+        let free = |p: Pos2| geom.viewport.contains(p) && !blocked.iter().any(|r| r.contains(p));
+        let over_viewport = f.hover.is_some_and(free) && resp.contains_pointer();
+        let dialog_open = self.modal.is_some() || self.color_dialog.is_some();
 
         if over_viewport && !f.space {
             let icon = match self.tool {
@@ -150,21 +154,29 @@ impl Editor {
             ui.ctx().set_cursor_icon(icon);
         }
 
-        let mut started = false;
-        if let Some(button) = f.pressed {
-            if over_viewport {
-                // A press on the canvas takes keyboard focus away from the side sliders.
-                self.focused_slider = None;
-            }
-            if over_viewport && !f.space && !popup_was_open && self.stroke.is_none() {
-                if let Some(pos) = f.hover {
+        for e in &f.events {
+            match *e {
+                PointerEvent::Move(p) => {
+                    if self.stroke.is_some() {
+                        self.continue_stroke(Self::image_pixel(geom, p), f.shift);
+                    }
+                }
+                PointerEvent::Press(pos, button) => {
+                    if !free(pos) || dialog_open {
+                        continue;
+                    }
+                    // A press on the canvas takes keyboard focus away from the side sliders.
+                    self.focused_slider = None;
+                    if f.space || popup_was_open || self.stroke.is_some() {
+                        continue;
+                    }
                     let px = Self::image_pixel(geom, pos);
                     let secondary = button == PointerButton::Secondary;
+                    if !matches!(button, PointerButton::Primary | PointerButton::Secondary) {
+                        continue;
+                    }
                     match self.tool {
-                        Tool::Pencil | Tool::Eraser => {
-                            self.begin_stroke(px, button);
-                            started = true;
-                        }
+                        Tool::Pencil | Tool::Eraser | Tool::Brush => self.begin_stroke(px, button),
                         Tool::Fill => self.fill_at(px, secondary),
                         Tool::Picker => self.pick_at(px, secondary),
                         Tool::Magnifier => {
@@ -180,25 +192,23 @@ impl Editor {
                         _ => {}
                     }
                 }
+                PointerEvent::Release(button) => {
+                    if self.stroke.as_ref().is_some_and(|s| s.button == button) {
+                        self.end_stroke();
+                    }
+                }
             }
         }
 
+        // Safety net: the button went up without us seeing the event (e.g. focus loss).
         if let Some(button) = self.stroke.as_ref().map(|s| s.button) {
             let still_down = match button {
                 PointerButton::Secondary => f.secondary_down,
                 _ => f.primary_down,
             };
-            if !started {
-                let mut points: Vec<(i32, i32)> =
-                    f.moves.iter().map(|p| Self::image_pixel(geom, *p)).collect();
-                if let Some(p) = f.hover {
-                    points.push(Self::image_pixel(geom, p));
-                }
-                for p in points {
-                    self.continue_stroke(p, f.shift);
-                }
-            }
-            if !still_down {
+            if still_down {
+                self.tick_stroke(ui.ctx());
+            } else {
                 self.end_stroke();
             }
         }
@@ -230,6 +240,37 @@ impl Editor {
                     painter.rect_filled(rect, 0.0, to_color32(color));
                 } else {
                     painter.circle_filled(center, r, to_color32(color));
+                }
+            }
+            Tool::Brush => {
+                let kind = self.brush;
+                let size = self.tool_settings.brush_size(kind) as f32;
+                let c = if size as u32 % 2 == 1 { 0.5 } else { 0.0 };
+                let center = geom.to_screen(x as f32 + c, y as f32 + c);
+                let r = (size / 2.0 * geom.scale).max(1.5);
+                match kind {
+                    BrushKind::Brush => {
+                        // Like the pencil: a dab of color 1 at the brush opacity.
+                        let mut color = self.color1;
+                        color.a = opacity_alpha(self.tool_settings.brush_opacity[kind.index()]);
+                        let r = ((size - 1.0).max(1.0) / 2.0 * geom.scale).max(0.75);
+                        painter.circle_filled(center, r, to_color32(color));
+                    }
+                    BrushKind::CalligraphyBrush | BrushKind::CalligraphyPen => {
+                        let d = size / 2.0 * std::f32::consts::FRAC_1_SQRT_2 * geom.scale;
+                        let v = if kind == BrushKind::CalligraphyPen {
+                            Vec2::new(d, d)
+                        } else {
+                            Vec2::new(d, -d)
+                        };
+                        painter.line_segment([center - v, center + v], Stroke::new(3.0, Color32::WHITE));
+                        painter.line_segment([center - v, center + v], Stroke::new(1.0, Color32::BLACK));
+                    }
+                    _ => {
+                        // The airbrush shows the outline of its spray area.
+                        painter.circle_stroke(center, r, Stroke::new(3.0, Color32::from_white_alpha(160)));
+                        painter.circle_stroke(center, r, Stroke::new(1.0, Color32::BLACK));
+                    }
                 }
             }
             Tool::Eraser => {
@@ -265,6 +306,21 @@ impl Editor {
         let layer = self.doc.active_id();
         let canvas = (self.doc.width(), self.doc.height());
         let (tool, label) = match self.tool {
+            Tool::Brush => {
+                let b = self.brush;
+                let seed = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(1, |d| d.as_nanos() as u64);
+                let s = BrushStroke::new(
+                    b,
+                    self.tool_settings.brush_size(b),
+                    self.tool_color(secondary),
+                    self.tool_settings.brush_opacity[b.index()],
+                    canvas,
+                    seed,
+                );
+                (StrokeTool::Brush(Box::new(s)), "brush")
+            }
             Tool::Pencil => {
                 let mut c = self.tool_color(secondary);
                 c.a = opacity_alpha(self.tool_settings.pencil_opacity);
@@ -281,24 +337,71 @@ impl Editor {
                 (StrokeTool::Eraser(EraserStroke::new(self.tool_settings.eraser_size(), mode)), "eraser")
             }
         };
-        self.stroke =
-            Some(ActiveStroke { tool, rec: PixelRecorder::new(layer), button, start: px, last: px, label });
+        self.stroke = Some(ActiveStroke {
+            tool,
+            rec: PixelRecorder::new(layer),
+            button,
+            start: px,
+            last: px,
+            label,
+            ticked: std::time::Instant::now(),
+        });
         self.paint_to(px);
     }
 
     fn paint_to(&mut self, (x, y): (i32, i32)) {
         let Some(stroke) = self.stroke.as_mut() else { return };
-        let bounds = stroke.bounds(x, y);
-        stroke.rec.touch(&self.doc, bounds);
         let id = stroke.rec.layer();
-        if let Some(raster) = self.doc.raster_mut(id) {
-            match &mut stroke.tool {
-                StrokeTool::Pencil(s) => s.line_to(raster, x, y),
-                StrokeTool::Eraser(s) => s.line_to(raster, x, y),
+        let bounds = match &mut stroke.tool {
+            StrokeTool::Pencil(s) => {
+                let bounds = s.segment_bounds(x, y);
+                stroke.rec.touch(&self.doc, bounds);
+                if let Some(raster) = self.doc.raster_mut(id) {
+                    s.line_to(raster, x, y);
+                }
+                bounds
             }
-        }
+            StrokeTool::Eraser(s) => {
+                let bounds = s.segment_bounds(x, y);
+                stroke.rec.touch(&self.doc, bounds);
+                if let Some(raster) = self.doc.raster_mut(id) {
+                    s.line_to(raster, x, y);
+                }
+                bounds
+            }
+            StrokeTool::Brush(b) => {
+                // The brush keeps its own coverage; the layer is re-rendered from the
+                // original pixels wherever the coverage changed.
+                let bounds = b.move_to(x, y);
+                stroke.rec.touch(&self.doc, bounds);
+                if let Some(raster) = self.doc.raster_mut(id) {
+                    b.composite(raster, &stroke.rec, bounds);
+                }
+                bounds
+            }
+        };
         stroke.last = (x, y);
         self.doc.mark_dirty(bounds);
+    }
+
+    /// Time-based painting (the airbrush keeps spraying while the button is held).
+    fn tick_stroke(&mut self, ctx: &egui::Context) {
+        let Some(stroke) = self.stroke.as_mut() else { return };
+        let StrokeTool::Brush(b) = &mut stroke.tool else { return };
+        if !b.needs_ticks() {
+            return;
+        }
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(stroke.ticked).as_secs_f32();
+        stroke.ticked = now;
+        let bounds = b.tick(dt);
+        let id = stroke.rec.layer();
+        stroke.rec.touch(&self.doc, bounds);
+        if let Some(raster) = self.doc.raster_mut(id) {
+            b.composite(raster, &stroke.rec, bounds);
+        }
+        self.doc.mark_dirty(bounds);
+        ctx.request_repaint();
     }
 
     fn continue_stroke(&mut self, px: (i32, i32), shift: bool) {
@@ -314,6 +417,7 @@ impl Editor {
             match &mut stroke.tool {
                 StrokeTool::Pencil(s) => s.restart(),
                 StrokeTool::Eraser(s) => s.restart(),
+                StrokeTool::Brush(b) => b.restart(),
             }
             let start = stroke.start;
             self.paint_to(start);
@@ -325,7 +429,15 @@ impl Editor {
 
     /// Commits the stroke in progress (if any) as one history entry.
     pub(crate) fn end_stroke(&mut self) {
-        if let Some(stroke) = self.stroke.take() {
+        if let Some(mut stroke) = self.stroke.take() {
+            if let StrokeTool::Brush(b) = &mut stroke.tool {
+                let bounds = b.finish();
+                stroke.rec.touch(&self.doc, bounds);
+                if let Some(raster) = self.doc.raster_mut(stroke.rec.layer()) {
+                    b.composite(raster, &stroke.rec, bounds);
+                }
+                self.doc.mark_dirty(bounds);
+            }
             self.history.push_pixels(&self.doc, stroke.label, stroke.rec);
         }
     }
@@ -382,6 +494,8 @@ impl Editor {
 
     fn slider_range(&self, id: SliderId) -> (u32, u32) {
         match id {
+            // Brushes with a 4 px minimum start their scale at position 4 (= 4 px).
+            SliderId::Size if self.tool == Tool::Brush => (self.brush.min_size(), SIZE_POSITIONS),
             SliderId::Size => (1, SIZE_POSITIONS),
             SliderId::Opacity | SliderId::Tolerance => (0, 100),
         }
@@ -542,6 +656,8 @@ impl Editor {
 /// Size of a side-slider panel in the original (points at 100%).
 pub const PANEL_W: f32 = 40.0;
 pub const PANEL_H: f32 = 360.0;
+/// Gap between two panels, stacked or side by side.
+pub const PANEL_GAP: f32 = 8.0;
 
 /// Screen rects of `count` side-slider panels at the left edge of the workspace: stacked
 /// vertically when there is room, side by side otherwise (as the original does).
@@ -551,13 +667,13 @@ pub fn slider_panels(workspace: Rect, count: usize) -> Vec<Rect> {
     }
     let n = count as f32;
     let left = workspace.min.x + 12.0;
-    let stacked_h = PANEL_H * n + 10.0 * (n - 1.0);
+    let stacked_h = PANEL_H * n + PANEL_GAP * (n - 1.0);
     if count > 1 && workspace.height() >= stacked_h + 48.0 {
         let top = workspace.center().y - stacked_h / 2.0;
         return (0..count)
             .map(|i| {
                 Rect::from_min_size(
-                    Pos2::new(left, top + i as f32 * (PANEL_H + 10.0)),
+                    Pos2::new(left, top + i as f32 * (PANEL_H + PANEL_GAP)),
                     Vec2::new(PANEL_W, PANEL_H),
                 )
             })
@@ -567,7 +683,10 @@ pub fn slider_panels(workspace: Rect, count: usize) -> Vec<Rect> {
     let top = workspace.center().y - h / 2.0;
     (0..count)
         .map(|i| {
-            Rect::from_min_size(Pos2::new(left + i as f32 * (PANEL_W + 8.0), top), Vec2::new(PANEL_W, h))
+            Rect::from_min_size(
+                Pos2::new(left + i as f32 * (PANEL_W + PANEL_GAP), top),
+                Vec2::new(PANEL_W, h),
+            )
         })
         .collect()
 }

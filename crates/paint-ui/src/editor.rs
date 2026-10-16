@@ -85,6 +85,7 @@ pub struct Editor {
     pub(crate) dialog_custom: [Option<Rgba>; 24],
     pub(crate) dialog_custom_next: usize,
     pub(crate) spectrum: Option<egui::TextureHandle>,
+    pub(crate) brush_previews: Option<[egui::TextureHandle; 9]>,
     pub(crate) shapes_scroll: usize,
     pub(crate) layers_panel: bool,
 
@@ -133,6 +134,7 @@ impl Editor {
             dialog_custom: [None; 24],
             dialog_custom_next: 0,
             spectrum: None,
+            brush_previews: None,
             shapes_scroll: 0,
             layers_panel: false,
             page: Page::Editor,

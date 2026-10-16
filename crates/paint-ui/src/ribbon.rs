@@ -290,15 +290,87 @@ impl Editor {
             ui.painter().rect_filled(bottom.shrink(1.0), crate::theme::RADIUS, p.hover);
         }
         widgets::chevron(ui, bottom.center(), p.text);
-        egui::Popup::menu(&menu).width(240.0).show(|ui| {
+        let previews = self.brush_previews(ui.ctx());
+        egui::Popup::menu(&menu).width(300.0).show(|ui| {
+            // Rows like the original: name on the left, a sample stroke on the right.
             for kind in BrushKind::ALL {
-                let label = format!("{}  {}", brush_icon(kind), tr.brushes[kind.index()]);
-                if ui.add(egui::Button::selectable(self.brush == kind, label)).clicked() {
+                let (rect, resp) = ui.allocate_exact_size(Vec2::new(300.0, 44.0), Sense::click());
+                let active = self.brush == kind;
+                if resp.hovered() || active {
+                    ui.painter().rect_filled(
+                        rect,
+                        crate::theme::RADIUS,
+                        if active { p.selected } else { p.hover },
+                    );
+                }
+                if active {
+                    let bar = Rect::from_min_size(rect.min + Vec2::new(0.0, 12.0), Vec2::new(3.0, 20.0));
+                    ui.painter().rect_filled(bar, 1.5, p.accent);
+                }
+                let painter = ui.painter();
+                let cy = rect.center().y;
+                painter.text(
+                    Pos2::new(rect.min.x + 20.0, cy),
+                    Align2::CENTER_CENTER,
+                    brush_icon(kind),
+                    fonts::icon(15.0),
+                    p.text,
+                );
+                painter.text(
+                    Pos2::new(rect.min.x + 36.0, cy),
+                    Align2::LEFT_CENTER,
+                    tr.brushes[kind.index()],
+                    fonts::regular(13.0),
+                    p.text,
+                );
+                let img = Rect::from_center_size(Pos2::new(rect.max.x - 44.0, cy), Vec2::new(64.0, 24.0));
+                painter.image(
+                    previews[kind.index()],
+                    img,
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                    p.text,
+                );
+                if resp.clicked() {
                     self.brush = kind;
                     self.set_tool(Tool::Brush);
+                    ui.close();
                 }
             }
         });
+    }
+
+    /// Sample strokes for the brush menu, drawn once with the real brush engine.
+    fn brush_previews(&mut self, ctx: &egui::Context) -> [egui::TextureId; 9] {
+        let textures = self.brush_previews.get_or_insert_with(|| {
+            BrushKind::ALL.map(|kind| {
+                let (w, h) = (64usize, 24usize);
+                let mut b = paint_core::brush::BrushStroke::new(
+                    kind,
+                    5,
+                    Rgba::WHITE,
+                    100,
+                    (w as u32, h as u32),
+                    0x5eed,
+                );
+                for i in 0..=30 {
+                    let t = i as f32 / 30.0;
+                    let x = 4.0 + t * 56.0;
+                    let y = 12.0 - 6.0 * (t * std::f32::consts::TAU).sin();
+                    b.move_to(x.round() as i32, y.round() as i32);
+                }
+                b.finish();
+                let pixels = (0..h)
+                    .flat_map(|y| (0..w).map(move |x| (x, y)))
+                    .map(|(x, y)| Color32::from_white_alpha(b.coverage(x as i32, y as i32)))
+                    .collect();
+                ctx.load_texture(
+                    format!("brush_preview_{}", kind.index()),
+                    egui::ColorImage::new([w, h], pixels),
+                    egui::TextureOptions::LINEAR,
+                )
+            })
+        });
+        std::array::from_fn(|i| textures[i].id())
     }
 
     fn shapes_group(&mut self, ui: &mut Ui, o: Pos2) {

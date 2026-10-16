@@ -109,6 +109,12 @@ impl PixelRecorder {
         self.tiles.is_empty()
     }
 
+    /// Original pixels of tile (`tx`, `ty`) as recorded by [`Self::touch`]; the raster's top-left
+    /// pixel is (`tx * TILE`, `ty * TILE`) and it is clipped to the canvas.
+    pub fn original_tile(&self, tx: u32, ty: u32) -> Option<&Raster> {
+        self.tiles.get(&(tx, ty))
+    }
+
     /// Restores the recorded original pixels (cancelling an edit in progress).
     pub fn revert(&self, doc: &mut Document) {
         let mut dirty = IRect::EMPTY;

@@ -59,17 +59,17 @@
 ## Кисти
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |
 |---|---|---|---|---|---|
-| B1 | Brush (круг, край 1 px) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B2 | Calligraphy brush (перо «/») | ✓ | todo | 3 | ref-brushes-10px.png |
-| B3 | Calligraphy pen (перо «\») | ✓ | todo | 3 | ref-brushes-10px.png |
-| B4 | Airbrush (бинарные точки, накопление) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B5 | Oil brush (полосы, сужение в начале) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B6 | Crayon (рваный край, зерно) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B7 | Marker (квадратное перо, 75%, накопление на пересечениях) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B8 | Natural pencil (зерно, светлый) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B9 | Watercolor (разводы, капля в конце) | ✓ | todo | 3 | ref-brushes-10px.png |
-| B10 | Мин. размер 1 / 4 px, макс. 248 px, нелинейная шкала | ✓ | todo | 3 | tools.md |
-| B11 | Эталоны 1/5/20 px, Opacity<100% | — | todo | 3 | brushes.md |
+| B1 | Brush (круг, край 1 px) | ✓ | done (разница с оригиналом 0,57 уровня) | 3 | brush::round_brush_matches_measured_profile |
+| B2 | Calligraphy brush (перо «/») | ✓ | done | 3 | brush::calligraphy_band_height_and_thin_direction |
+| B3 | Calligraphy pen (перо «\») | ✓ | done | 3 | brushes.md |
+| B4 | Airbrush (бинарные точки, накопление) | ✓ | done (по событиям и по времени) | 3 | brush::airbrush_sprays_binary_dots_inside_the_disc |
+| B5 | Oil brush (полосы, сужение в начале) | ✓ | done (текстура приблизительная, см. DIFFS) | 3 | brush::oil_starts_narrow |
+| B6 | Crayon (рваный край, зерно) | ✓ | done (текстура приблизительная) | 3 | brushes.md |
+| B7 | Marker (квадратное перо, 75%, накопление на пересечениях) | ✓ | done (совпадает) | 3 | brush::marker_is_flat_75_percent_and_builds_up_on_crossing |
+| B8 | Natural pencil (зерно, светлый) | ✓ | done (тон совпадает, зерно своё) | 3 | brushes.md |
+| B9 | Watercolor (разводы, капля в конце) | ✓ | done без «капли» (не воспроизвелась на оригинале) | 3 | brushes.md |
+| B10 | Мин. размер 1 / 4 px, макс. 248 px, нелинейная шкала | ✓ | done | 3 | tool::size_scale_matches_the_original |
+| B11 | Эталоны 1/5/20 px, Opacity<100% | ✓ (1/5/10/20/36 px) | done (Opacity<100% у текстурных — не сверено) | 3 | brushes.md |
 
 ## Фигуры
 | ID | Функция | Ориг. | Статус | Эт. | Ссылка |

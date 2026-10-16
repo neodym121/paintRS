@@ -5,6 +5,7 @@ Usage:
   python cap.py info <title-substring>                     # window + client rect on screen
   python cap.py drag <btn> x0,y0 x1,y1 [x2,y2 ...]        # screen coords, btn = l|r
   python cap.py click <btn> x,y
+  python cap.py max <title-substring>                      # maximize and bring to front
 
 Helpers for the clean-room comparison of PaintRS with the original (observed behaviour only):
 PrintWindow captures of a window's client area (1 screen pixel = 1 canvas pixel at 100%) and
@@ -132,6 +133,10 @@ def main():
     elif cmd == "drag":
         pts = [tuple(float(v) for v in a.split(",")) for a in sys.argv[3:]]
         drag(sys.argv[2], pts)
+    elif cmd == "max":
+        h = find(sys.argv[2])
+        user32.ShowWindow(h, 3)
+        user32.SetForegroundWindow(h)
     elif cmd == "click":
         x, y = (float(v) for v in sys.argv[3].split(","))
         drag(sys.argv[2], [(x, y)])
