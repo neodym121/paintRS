@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# Снимки интерфейса оригинала (ассеты Microsoft) — только локально, см. docs/behavior/img/README.md
+docs/behavior/img/ui-*
