@@ -2,6 +2,7 @@
 
 pub mod actions;
 pub mod canvas;
+mod color_dialog;
 mod dialogs;
 pub mod editor;
 pub mod fonts;
@@ -13,6 +14,7 @@ pub mod settings;
 mod settings_page;
 mod statusbar;
 pub mod theme;
+mod tools;
 pub mod widgets;
 
 pub use editor::Editor;

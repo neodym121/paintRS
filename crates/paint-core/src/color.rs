@@ -42,6 +42,50 @@ impl Rgba {
             _ => None,
         }
     }
+
+    /// Opaque color from hue (degrees, any range), saturation and value (0…1).
+    pub fn from_hsv(h: f32, s: f32, v: f32) -> Self {
+        let [r, g, b] = hsv_to_rgb(h, s, v);
+        let q = |c: f32| (c * 255.0).round().clamp(0.0, 255.0) as u8;
+        Self::rgb(q(r), q(g), q(b))
+    }
+
+    /// Hue (0…360), saturation and value (0…1). Gray colors report hue 0.
+    pub fn to_hsv(self) -> (f32, f32, f32) {
+        let (r, g, b) = (self.r as f32 / 255.0, self.g as f32 / 255.0, self.b as f32 / 255.0);
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let d = max - min;
+        let h = if d == 0.0 {
+            0.0
+        } else if max == r {
+            60.0 * ((g - b) / d).rem_euclid(6.0)
+        } else if max == g {
+            60.0 * ((b - r) / d + 2.0)
+        } else {
+            60.0 * ((r - g) / d + 4.0)
+        };
+        let s = if max == 0.0 { 0.0 } else { d / max };
+        (h, s, max)
+    }
+}
+
+/// HSV → sRGB channels in 0…1.
+pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [f32; 3] {
+    let h = h.rem_euclid(360.0) / 60.0;
+    let (s, v) = (s.clamp(0.0, 1.0), v.clamp(0.0, 1.0));
+    let c = v * s;
+    let x = c * (1.0 - (h % 2.0 - 1.0).abs());
+    let (r, g, b) = match h as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    [r + m, g + m, b + m]
 }
 
 /// Premultiplied RGBA8 pixel.
@@ -143,5 +187,17 @@ mod tests {
         assert_eq!(Rgba::from_hex("fff"), Some(Rgba::WHITE));
         assert_eq!(Rgba::from_hex("#12"), None);
         assert_eq!(Rgba::rgb(0x33, 0x66, 0xCC).to_hex(), "#3366CC");
+    }
+
+    #[test]
+    fn hsv_roundtrip() {
+        assert_eq!(Rgba::from_hsv(0.0, 1.0, 1.0), Rgba::rgb(255, 0, 0));
+        assert_eq!(Rgba::from_hsv(120.0, 1.0, 1.0), Rgba::rgb(0, 255, 0));
+        assert_eq!(Rgba::from_hsv(240.0, 0.0, 1.0), Rgba::WHITE);
+        assert_eq!(Rgba::from_hsv(77.0, 0.5, 0.0), Rgba::BLACK);
+        for c in [Rgba::rgb(0xEB, 0x33, 0x24), Rgba::rgb(12, 200, 99), Rgba::rgb(7, 7, 250)] {
+            let (h, s, v) = c.to_hsv();
+            assert_eq!(Rgba::from_hsv(h, s, v), c);
+        }
     }
 }

@@ -12,19 +12,27 @@ use eframe::egui_wgpu::{self, wgpu};
 use paint_ui::{Editor, Settings};
 
 struct App {
+    started: std::time::Instant,
+    frames_logged: u8,
     editor: Editor,
     saved_settings: Settings,
     title: String,
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, settings: Settings, open: Option<PathBuf>) -> Self {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        settings: Settings,
+        open: Option<PathBuf>,
+        started: std::time::Instant,
+    ) -> Self {
+        tracing::info!("window and renderer ready after {:?}", started.elapsed());
         paint_ui::setup(&cc.egui_ctx);
         let mut editor = Editor::new(settings.clone(), cc.wgpu_render_state.as_ref());
         if let Some(path) = open {
             editor.open_path(path);
         }
-        Self { editor, saved_settings: settings, title: String::new() }
+        Self { started, frames_logged: 0, editor, saved_settings: settings, title: String::new() }
     }
 }
 
@@ -45,6 +53,10 @@ impl eframe::App for App {
         }
 
         self.editor.ui(ui);
+        if self.frames_logged == 0 {
+            self.frames_logged = 1;
+            tracing::info!("first frame built after {:?}", self.started.elapsed());
+        }
 
         let title = self.editor.title();
         if title != self.title {
@@ -81,6 +93,7 @@ fn wgpu_options() -> egui_wgpu::WgpuConfiguration {
 }
 
 fn main() -> eframe::Result {
+    let started = std::time::Instant::now();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -105,5 +118,9 @@ fn main() -> eframe::Result {
         centered: true,
         ..Default::default()
     };
-    eframe::run_native("PaintRS", options, Box::new(move |cc| Ok(Box::new(App::new(cc, settings, open)))))
+    eframe::run_native(
+        "PaintRS",
+        options,
+        Box::new(move |cc| Ok(Box::new(App::new(cc, settings, open, started)))),
+    )
 }

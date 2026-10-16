@@ -480,18 +480,21 @@ impl Editor {
             }
         }
 
-        // Edit colors (dialog in stage 2).
+        // Edit colors.
         let rect = widgets::centered(at(1047.5, 43.5), Vec2::splat(36.0));
-        widgets::icon_button(
+        if widgets::icon_button(
             ui,
             rect,
             Id::unique("rb_edit_colors"),
             icons::PALETTE,
             20.0,
-            BtnState::enabled(false),
+            BtnState::default(),
         )
-        .on_hover_text(tr.edit_colors);
-        let _ = self.active_color();
+        .on_hover_text(tr.edit_colors)
+        .clicked()
+        {
+            self.open_color_dialog();
+        }
     }
 }
 

@@ -11,9 +11,11 @@ use crate::actions::{Action, Keymap};
 use crate::canvas::gpu::CanvasGpu;
 use crate::canvas::mips::MipChain;
 use crate::canvas::{self, CanvasDraw, CanvasView};
+use crate::color_dialog::ColorDialog;
 use crate::i18n::Tr;
 use crate::settings::Settings;
 use crate::theme::{self, Palette, ThemeMode};
+use crate::tools::{self, ActiveStroke, SliderId, ToolSettings};
 
 pub const MENU_BAR_H: f32 = 40.0;
 pub const RIBBON_H: f32 = 108.0;
@@ -73,6 +75,16 @@ pub struct Editor {
     pub(crate) color2: Rgba,
     pub(crate) active_slot: ColorSlot,
     pub(crate) custom_colors: [Option<Rgba>; 10],
+    pub(crate) tool_settings: ToolSettings,
+    /// Tool to return to after a single color pick.
+    pub(crate) prev_tool: Tool,
+    pub(crate) stroke: Option<ActiveStroke>,
+    pub(crate) focused_slider: Option<SliderId>,
+    pub(crate) color_dialog: Option<ColorDialog>,
+    /// Custom colors of the "Edit colors" dialog (kept for the session, like the original).
+    pub(crate) dialog_custom: [Option<Rgba>; 24],
+    pub(crate) dialog_custom_next: usize,
+    pub(crate) spectrum: Option<egui::TextureHandle>,
     pub(crate) shapes_scroll: usize,
     pub(crate) layers_panel: bool,
 
@@ -113,6 +125,14 @@ impl Editor {
             color2: Rgba::WHITE,
             active_slot: ColorSlot::One,
             custom_colors: [None; 10],
+            tool_settings: ToolSettings::default(),
+            prev_tool: Tool::default(),
+            stroke: None,
+            focused_slider: None,
+            color_dialog: None,
+            dialog_custom: [None; 24],
+            dialog_custom_next: 0,
+            spectrum: None,
             shapes_scroll: 0,
             layers_panel: false,
             page: Page::Editor,
@@ -190,6 +210,7 @@ impl Editor {
     }
 
     pub(crate) fn run_pending(&mut self, action: Pending) {
+        self.end_stroke();
         match action {
             Pending::New => self.new_document(),
             Pending::Open(path) => {
@@ -327,9 +348,11 @@ impl Editor {
                 self.save_as(io::Format::Png);
             }
             Action::Undo => {
+                self.end_stroke();
                 self.history.undo(&mut self.doc);
             }
             Action::Redo => {
+                self.end_stroke();
                 self.history.redo(&mut self.doc);
             }
             Action::Zoom100 => self.view.zoom_to(1.0, None, image, ppp),
@@ -369,6 +392,13 @@ impl Editor {
     }
 
     pub(crate) fn set_tool(&mut self, tool: Tool) {
+        if tool == self.tool {
+            return;
+        }
+        self.end_stroke();
+        if tool == Tool::Picker {
+            self.prev_tool = self.tool;
+        }
         self.tool = tool;
     }
 
@@ -432,7 +462,8 @@ impl Editor {
         }
 
         let typing = ctx.egui_wants_keyboard_input();
-        if self.modal.is_none() {
+        let popup_was_open = egui::Popup::is_any_open(&ctx);
+        if self.modal.is_none() && self.color_dialog.is_none() {
             for a in self.keymap.pressed(&ctx, !typing) {
                 self.run_action(&ctx, a);
             }
@@ -466,6 +497,9 @@ impl Editor {
             let image = (self.doc.width(), self.doc.height());
             let (geom, resp) = canvas::show(ui, &mut self.view, image, &draw);
             self.hover_pixel = resp.hover_pos().and_then(|pos| geom.pixel_at(pos));
+            let panels = tools::slider_panels(geom.viewport, self.slider_ids().len());
+            self.canvas_input(ui, &resp, &geom, &panels, popup_was_open);
+            self.side_sliders(ui, &panels);
             if self.gpu.is_none() {
                 ui.painter().text(
                     geom.viewport.center(),
@@ -477,6 +511,7 @@ impl Editor {
             }
         });
 
+        self.color_dialog_ui(&ctx);
         self.modals(&ctx);
     }
 }

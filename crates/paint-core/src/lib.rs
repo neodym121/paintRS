@@ -3,6 +3,7 @@
 
 pub mod color;
 pub mod document;
+pub mod draw;
 pub mod geom;
 pub mod history;
 pub mod io;

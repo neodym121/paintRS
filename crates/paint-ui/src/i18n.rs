@@ -119,6 +119,11 @@ pub struct Tr {
     pub color1: &'static str,
     pub color2: &'static str,
     pub edit_colors: &'static str,
+    pub basic_colors: &'static str,
+    pub custom_colors: &'static str,
+    pub add_custom_color: &'static str,
+    pub rgb_names: [&'static str; 3],
+    pub hsv_names: [&'static str; 3],
     pub layers: &'static str,
 
     // Status bar
@@ -279,6 +284,11 @@ pub static RU: Tr = Tr {
     color1: "Цвет 1",
     color2: "Цвет 2",
     edit_colors: "Изменить цвета",
+    basic_colors: "Основные цвета",
+    custom_colors: "Свои цвета",
+    add_custom_color: "Добавить текущий цвет в свои",
+    rgb_names: ["Красный", "Зелёный", "Синий"],
+    hsv_names: ["Тон", "Насыщенность", "Яркость"],
     layers: "Слои",
 
     file_size: "Размер",
@@ -436,6 +446,11 @@ pub static EN: Tr = Tr {
     color1: "Color 1",
     color2: "Color 2",
     edit_colors: "Edit colors",
+    basic_colors: "Basic colors",
+    custom_colors: "My colors",
+    add_custom_color: "Keep the current color",
+    rgb_names: ["Red", "Green", "Blue"],
+    hsv_names: ["Hue", "Saturation", "Brightness"],
     layers: "Layers",
 
     file_size: "Size",

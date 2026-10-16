@@ -21,7 +21,7 @@ png = "0.18"
 thiserror = "2"
 anyhow = "1"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi", "tracing-log"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 directories = "6"
