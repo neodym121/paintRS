@@ -24,10 +24,19 @@ user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
 
 
 def find(sub):
+    """Window whose title contains `sub` (case-insensitive), or `class:Name` for a window class
+    (the original is `class:MSPaintApp`: "Paint" alone also matches "PaintRS")."""
     found = []
+    by_class = sub.startswith("class:")
 
     def cb(hwnd, _):
         if user32.IsWindowVisible(hwnd):
+            if by_class:
+                buf = ctypes.create_unicode_buffer(256)
+                user32.GetClassNameW(hwnd, buf, 256)
+                if buf.value == sub[6:]:
+                    found.append((hwnd, buf.value))
+                return True
             n = user32.GetWindowTextLengthW(hwnd)
             buf = ctypes.create_unicode_buffer(n + 1)
             user32.GetWindowTextW(hwnd, buf, n + 1)
@@ -171,3 +180,29 @@ def key(vk, n=1, extended=True):
             inp = KINPUT(1, KI(vk, 0, flags, 0, 0))
             user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(KINPUT))
             time.sleep(0.01)
+
+
+def key_down(vk, extended=False):
+    inp = KINPUT(1, KI(vk, 0, 1 if extended else 0, 0, 0))
+    user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(KINPUT))
+    time.sleep(0.02)
+
+
+def key_up(vk, extended=False):
+    inp = KINPUT(1, KI(vk, 0, 2 | (1 if extended else 0), 0, 0))
+    user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(KINPUT))
+    time.sleep(0.02)
+
+
+VK_SHIFT, VK_CONTROL, VK_MENU = 0x10, 0x11, 0x12
+
+
+def combo(mods, vk, extended=False):
+    """Presses vk with modifier keys held, e.g. combo([VK_CONTROL], ord('Z'))."""
+    for m in mods:
+        key_down(m)
+    key_down(vk, extended)
+    key_up(vk, extended)
+    for m in reversed(mods):
+        key_up(m)
+    time.sleep(0.05)
