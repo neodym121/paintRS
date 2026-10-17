@@ -149,9 +149,25 @@ impl Editor {
                 Tool::Eraser => CursorIcon::None,
                 Tool::Text => CursorIcon::Text,
                 Tool::Magnifier => CursorIcon::ZoomIn,
+                Tool::Shape => f.hover.map_or(CursorIcon::Crosshair, |p| self.shape_cursor(geom, p)),
                 _ => CursorIcon::Crosshair,
             };
             ui.ctx().set_cursor_icon(icon);
+        }
+
+        // Enter commits the draft shape, Esc drops it.
+        if self.tool == Tool::Shape && self.draft.is_some() && !dialog_open {
+            let (enter, esc) = ui.ctx().input_mut(|i| {
+                (
+                    i.consume_key(egui::Modifiers::NONE, Key::Enter),
+                    i.consume_key(egui::Modifiers::NONE, Key::Escape),
+                )
+            });
+            if enter {
+                self.commit_draft();
+            } else if esc {
+                self.cancel_draft();
+            }
         }
 
         for e in &f.events {
@@ -159,6 +175,8 @@ impl Editor {
                 PointerEvent::Move(p) => {
                     if self.stroke.is_some() {
                         self.continue_stroke(Self::image_pixel(geom, p), f.shift);
+                    } else if self.shape_button.is_some() {
+                        self.shape_drag(Self::image_pixel(geom, p), f.shift);
                     }
                 }
                 PointerEvent::Press(pos, button) => {
@@ -177,6 +195,10 @@ impl Editor {
                     }
                     match self.tool {
                         Tool::Pencil | Tool::Eraser | Tool::Brush => self.begin_stroke(px, button),
+                        Tool::Shape => {
+                            self.shape_button = Some(button);
+                            self.shape_press(geom, pos, px, secondary);
+                        }
                         Tool::Fill => self.fill_at(px, secondary),
                         Tool::Picker => self.pick_at(px, secondary),
                         Tool::Magnifier => {
@@ -196,7 +218,19 @@ impl Editor {
                     if self.stroke.as_ref().is_some_and(|s| s.button == button) {
                         self.end_stroke();
                     }
+                    if self.shape_button == Some(button) {
+                        self.shape_button = None;
+                        self.shape_release();
+                    }
                 }
+            }
+        }
+
+        if let Some(b) = self.shape_button {
+            let down = if b == PointerButton::Secondary { f.secondary_down } else { f.primary_down };
+            if !down {
+                self.shape_button = None;
+                self.shape_release();
             }
         }
 
@@ -218,6 +252,7 @@ impl Editor {
                 self.draw_tool_preview(ui, geom, pos);
             }
         }
+        self.draw_draft_overlay(ui, geom);
     }
 
     /// What the original draws under the pointer: a dab of the pencil in color 1 at the tool

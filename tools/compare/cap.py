@@ -155,6 +155,15 @@ class KINPUT(ctypes.Structure):
     _fields_ = [("type", wt.DWORD), ("ki", KI), ("pad", ctypes.c_byte * 8)]
 
 
+def wheel(x, y, notches):
+    """Mouse wheel at screen (x, y): positive = away from the user (scroll up)."""
+    move(x, y)
+    time.sleep(0.05)
+    inp = INPUT(0, MI(0, 0, ctypes.c_uint32(int(120 * notches) & 0xFFFFFFFF).value, 0x0800, 0, 0))
+    user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+    time.sleep(0.1)
+
+
 def key(vk, n=1, extended=True):
     for _ in range(n):
         for up in (0, 2):

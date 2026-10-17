@@ -50,6 +50,11 @@ impl CanvasGeom {
         ((p.x - self.canvas.min.x) / self.scale, (p.y - self.canvas.min.y) / self.scale)
     }
 
+    pub fn to_image_f(&self, p: Pos2) -> [f32; 2] {
+        let (x, y) = self.to_image(p);
+        [x, y]
+    }
+
     pub fn to_screen(&self, x: f32, y: f32) -> Pos2 {
         Pos2::new(self.canvas.min.x + x * self.scale, self.canvas.min.y + y * self.scale)
     }

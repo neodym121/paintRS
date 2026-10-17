@@ -12,6 +12,7 @@ mod menubar;
 mod ribbon;
 pub mod settings;
 mod settings_page;
+mod shapes;
 mod statusbar;
 pub mod theme;
 mod tools;

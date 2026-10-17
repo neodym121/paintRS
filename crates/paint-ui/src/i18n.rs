@@ -113,6 +113,8 @@ pub struct Tr {
     pub shapes: [&'static str; 23],
     pub outline: &'static str,
     pub shape_fill: &'static str,
+    pub outline_styles: [&'static str; 7],
+    pub fill_styles: [&'static str; 7],
     pub size: &'static str,
 
     // Colors
@@ -279,6 +281,24 @@ pub static RU: Tr = Tr {
     ],
     outline: "Контур",
     shape_fill: "Заливка",
+    outline_styles: [
+        "Без контура",
+        "Сплошной",
+        "Мелок",
+        "Маркер",
+        "Масляная кисть",
+        "Натуральный карандаш",
+        "Акварель",
+    ],
+    fill_styles: [
+        "Без заливки",
+        "Сплошная",
+        "Мелок",
+        "Маркер",
+        "Масляная кисть",
+        "Натуральный карандаш",
+        "Акварель",
+    ],
     size: "Толщина",
 
     color1: "Цвет 1",
@@ -441,6 +461,8 @@ pub static EN: Tr = Tr {
     ],
     outline: "Outline",
     shape_fill: "Fill",
+    outline_styles: ["No outline", "Solid", "Chalk", "Highlighter", "Oil paint", "Graphite", "Watercolor"],
+    fill_styles: ["No fill", "Solid", "Chalk", "Highlighter", "Oil paint", "Graphite", "Watercolor"],
     size: "Width",
 
     color1: "Color 1",

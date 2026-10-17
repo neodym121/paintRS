@@ -10,3 +10,4 @@ rust-version.workspace = true
 image = { workspace = true, features = ["png", "jpeg", "bmp", "gif", "tiff", "ico", "webp"] }
 png.workspace = true
 thiserror.workspace = true
+tiny-skia.workspace = true

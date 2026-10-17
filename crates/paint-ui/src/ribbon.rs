@@ -3,7 +3,7 @@
 //! its slot, and the "remove background" slot of the Image group holds "Invert colors".
 
 use egui::{Align2, Color32, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
-use paint_core::shape::{unit_outline, ShapeKind};
+use paint_core::shape::{unit_outline, PaintStyle, ShapeKind, WIDTHS};
 use paint_core::tool::{BrushKind, SelectionKind, Tool};
 use paint_core::Rgba;
 
@@ -382,8 +382,8 @@ impl Editor {
         let max_scroll = rows.saturating_sub(3);
 
         // Wheel over the gallery scrolls by rows.
-        let gallery = ui.interact(frame, Id::unique("rb_shapes_area"), Sense::hover());
-        if gallery.hovered() {
+        // The cells sit on top of the gallery, so check the pointer position, not hover.
+        if ui.ctx().pointer_hover_pos().is_some_and(|p| frame.contains(p)) {
             let dy = ui.input(|i| crate::canvas::wheel_input(i, frame)).map_or(0.0, |(d, _)| d.y);
             if dy < 0.0 {
                 self.shapes_scroll = (self.shapes_scroll + 1).min(max_scroll);
@@ -415,6 +415,7 @@ impl Editor {
             }
             draw_shape_icon(&painter, kind, Rect::from_center_size(c, Vec2::splat(13.0)), p.text);
             if resp.clicked() {
+                self.commit_draft();
                 self.shape = kind;
                 self.set_tool(Tool::Shape);
             }
@@ -457,9 +458,10 @@ impl Editor {
         let enabled = self.tool == Tool::Shape;
         let st = BtnState::enabled(enabled);
         let fg = widgets::fg(ui, st);
-        for (row_y, icon, id, title) in [
-            (24.0, icons::SQUARE_PEN, "rb_outline", tr.outline),
-            (63.0, icons::PAINT_BUCKET, "rb_fill", tr.shape_fill),
+        let previews = self.brush_previews(ui.ctx());
+        for (row_y, icon, id, title, is_fill) in [
+            (24.0, icons::SQUARE_PEN, "rb_outline", tr.outline, false),
+            (63.0, icons::PAINT_BUCKET, "rb_fill", tr.shape_fill, true),
         ] {
             let rect = Rect::from_center_size(Pos2::new(o.x + 648.5, o.y + row_y), Vec2::new(42.0, 30.0));
             let sense = if enabled { Sense::click() } else { Sense::hover() };
@@ -473,6 +475,77 @@ impl Editor {
                 fg,
             );
             widgets::chevron(ui, Pos2::new(o.x + 661.5, o.y + row_y), fg);
+            let names = if is_fill { tr.fill_styles } else { tr.outline_styles };
+            egui::Popup::menu(&resp).width(250.0).show(|ui| {
+                let current = if is_fill { self.shape_settings.fill } else { self.shape_settings.outline };
+                for style in PaintStyle::ALL {
+                    let (rect, resp) = ui.allocate_exact_size(Vec2::new(250.0, 36.0), Sense::click());
+                    let active = current == style;
+                    if resp.hovered() || active {
+                        ui.painter().rect_filled(
+                            rect,
+                            crate::theme::RADIUS,
+                            if active { p.selected } else { p.hover },
+                        );
+                    }
+                    if active {
+                        let bar = Rect::from_min_size(rect.min + Vec2::new(0.0, 9.0), Vec2::new(3.0, 18.0));
+                        ui.painter().rect_filled(bar, 1.5, p.accent);
+                    }
+                    let cy = rect.center().y;
+                    ui.painter().text(
+                        Pos2::new(rect.min.x + 14.0, cy),
+                        Align2::LEFT_CENTER,
+                        names[style.index()],
+                        fonts::regular(13.0),
+                        p.text,
+                    );
+                    let sample =
+                        Rect::from_center_size(Pos2::new(rect.max.x - 44.0, cy), Vec2::new(64.0, 20.0));
+                    match style {
+                        PaintStyle::None => {
+                            ui.painter().rect_stroke(
+                                sample,
+                                2.0,
+                                Stroke::new(1.0, p.text_muted),
+                                StrokeKind::Inside,
+                            );
+                            ui.painter().line_segment(
+                                [sample.left_bottom(), sample.right_top()],
+                                Stroke::new(1.0, p.text_muted),
+                            );
+                        }
+                        PaintStyle::Solid if is_fill => {
+                            ui.painter().rect_filled(sample, 2.0, p.text);
+                        }
+                        PaintStyle::Solid => {
+                            ui.painter().line_segment(
+                                [sample.left_center(), sample.right_center()],
+                                Stroke::new(3.0, p.text),
+                            );
+                        }
+                        other => {
+                            if let Some(kind) = other.brush() {
+                                let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                                ui.painter().image(
+                                    previews[kind.index()],
+                                    sample.expand2(Vec2::new(0.0, 2.0)),
+                                    uv,
+                                    p.text,
+                                );
+                            }
+                        }
+                    }
+                    if resp.clicked() {
+                        if is_fill {
+                            self.shape_settings.fill = style;
+                        } else {
+                            self.shape_settings.outline = style;
+                        }
+                        ui.close();
+                    }
+                }
+            });
         }
         let size_rect =
             Rect::from_min_max(Pos2::new(o.x + 680.0, o.y + 14.0), Pos2::new(o.x + 711.0, o.y + 72.0));
@@ -485,6 +558,40 @@ impl Editor {
                 .line_segment([Pos2::new(o.x + 686.0, y), Pos2::new(o.x + 705.0, y)], Stroke::new(w, fg));
         }
         widgets::chevron(ui, Pos2::new(o.x + 695.5, o.y + 61.0), fg);
+        // The original centres this menu under its button.
+        egui::Popup::menu(&size_resp).width(120.0).align(egui::RectAlign::BOTTOM).show(|ui| {
+            for w in WIDTHS {
+                let (rect, resp) = ui.allocate_exact_size(Vec2::new(120.0, 34.0), Sense::click());
+                let active = self.shape_settings.width == w;
+                if resp.hovered() || active {
+                    ui.painter().rect_filled(
+                        rect,
+                        crate::theme::RADIUS,
+                        if active { p.selected } else { p.hover },
+                    );
+                }
+                if active {
+                    let bar = Rect::from_min_size(rect.min + Vec2::new(0.0, 8.0), Vec2::new(3.0, 18.0));
+                    ui.painter().rect_filled(bar, 1.5, p.accent);
+                }
+                let cy = rect.center().y;
+                ui.painter().text(
+                    Pos2::new(rect.min.x + 14.0, cy),
+                    Align2::LEFT_CENTER,
+                    format!("{w}px"),
+                    fonts::regular(13.0),
+                    p.text,
+                );
+                ui.painter().line_segment(
+                    [Pos2::new(rect.min.x + 50.0, cy), Pos2::new(rect.max.x - 12.0, cy)],
+                    Stroke::new(w as f32, p.text),
+                );
+                if resp.clicked() {
+                    self.shape_settings.width = w;
+                    ui.close();
+                }
+            }
+        });
     }
 
     #[allow(clippy::needless_range_loop)]
@@ -575,15 +682,15 @@ const RIBBON_LINE: f32 = 108.5;
 /// Draws a gallery icon for `kind` inside `rect` using the core outline geometry.
 pub fn draw_shape_icon(painter: &egui::Painter, kind: ShapeKind, rect: Rect, color: Color32) {
     let stroke = Stroke::new(1.2, color);
-    for contour in unit_outline(kind) {
+    for (contour, closed) in unit_outline(kind) {
         let pts: Vec<Pos2> = contour
             .iter()
             .map(|[x, y]| Pos2::new(rect.min.x + x * rect.width(), rect.min.y + y * rect.height()))
             .collect();
-        if kind.is_open() {
-            painter.add(egui::Shape::line(pts, stroke));
-        } else {
+        if closed {
             painter.add(egui::Shape::closed_line(pts, stroke));
+        } else {
+            painter.add(egui::Shape::line(pts, stroke));
         }
     }
 }

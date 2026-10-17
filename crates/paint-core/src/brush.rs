@@ -106,10 +106,15 @@ pub struct BrushStroke {
     last: Option<(i32, i32)>,
     /// The point before `last` (direction of the final segment).
     prev: Option<(i32, i32)>,
+    /// Brush centres of `last` and `prev` (sub-pixel for shape outlines).
+    last_c: Option<(f32, f32)>,
+    prev_c: Option<(f32, f32)>,
     /// Distance travelled along the stroke, in pixels.
     travelled: f32,
     /// Distance after which a revisited pixel counts as a new pass.
     window: f32,
+    /// Never builds up tone on revisits (shape outlines: one even pass all around).
+    single_pass: bool,
     /// Airbrush dots owed to the timer.
     spray_debt: f32,
     /// Oil/watercolor bristle intensities across the stroke.
@@ -142,8 +147,11 @@ impl BrushStroke {
             seed: seed32,
             last: None,
             prev: None,
+            last_c: None,
+            prev_c: None,
             travelled: 0.0,
             window: size as f32 + 2.0,
+            single_pass: false,
             spray_debt: 0.0,
             bristles,
         }
@@ -163,12 +171,34 @@ impl BrushStroke {
         self.tiles.clear();
         self.last = None;
         self.prev = None;
+        self.last_c = None;
+        self.prev_c = None;
         self.travelled = 0.0;
         self.spray_debt = 0.0;
     }
 
+    /// Lifts the brush: the next point starts a new sub-path of the same stroke, which builds
+    /// up tone where it crosses earlier ones (used for shape outlines and fills).
+    pub fn restart_path(&mut self) {
+        self.last = None;
+        self.prev = None;
+        self.last_c = None;
+        self.prev_c = None;
+        self.travelled += self.window * 2.0;
+    }
+
+    /// Paints every pixel at most once: closing a shape outline over its start leaves no darker
+    /// spot, like the original.
+    pub fn set_single_pass(&mut self) {
+        self.single_pass = true;
+    }
+
     fn accumulates(&self) -> bool {
-        matches!(self.kind, BrushKind::Oil | BrushKind::Crayon | BrushKind::Marker | BrushKind::NaturalPencil)
+        !self.single_pass
+            && matches!(
+                self.kind,
+                BrushKind::Oil | BrushKind::Crayon | BrushKind::Marker | BrushKind::NaturalPencil
+            )
     }
 
     /// Centre of the brush for the pointer on pixel (x, y): odd sizes are centred on the pixel,
@@ -211,8 +241,13 @@ impl BrushStroke {
 
     /// Pointer pressed on pixel (x, y). Returns the region whose coverage changed.
     pub fn press(&mut self, x: i32, y: i32) -> IRect {
-        self.last = Some((x, y));
         let c = self.center(x, y);
+        self.press_at(x, y, c)
+    }
+
+    fn press_at(&mut self, x: i32, y: i32, c: (f32, f32)) -> IRect {
+        self.last = Some((x, y));
+        self.last_c = Some(c);
         match self.kind {
             BrushKind::Brush => self.round(c, c),
             BrushKind::Airbrush => self.spray(c, 20),
@@ -223,13 +258,31 @@ impl BrushStroke {
 
     /// Pointer moved to pixel (x, y).
     pub fn move_to(&mut self, x: i32, y: i32) -> IRect {
-        let Some(last) = self.last else { return self.press(x, y) };
-        if last == (x, y) {
+        if self.last == Some((x, y)) {
             return IRect::EMPTY;
         }
+        let c = self.center(x, y);
+        self.segment_to(x, y, c)
+    }
+
+    /// Moves the brush centre to (x, y) in image coordinates without snapping to pixels (shape
+    /// outlines follow their curves smoothly this way).
+    pub fn move_to_f(&mut self, x: f32, y: f32) -> IRect {
+        if let Some((lx, ly)) = self.last_c {
+            if (x - lx).abs() < 0.01 && (y - ly).abs() < 0.01 {
+                return IRect::EMPTY;
+            }
+        }
+        let o = if self.size % 2 == 1 { 0.5 } else { 0.0 };
+        self.segment_to((x - o).round() as i32, (y - o).round() as i32, (x, y))
+    }
+
+    fn segment_to(&mut self, x: i32, y: i32, b: (f32, f32)) -> IRect {
+        let (Some(last), Some(a)) = (self.last, self.last_c) else { return self.press_at(x, y, b) };
         self.prev = Some(last);
+        self.prev_c = Some(a);
         self.last = Some((x, y));
-        let (a, b) = (self.center(last.0, last.1), self.center(x, y));
+        self.last_c = Some(b);
         let len = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
         let dirty = match self.kind {
             BrushKind::Brush => self.round(a, b),
@@ -401,8 +454,7 @@ impl BrushStroke {
         if !matches!(self.kind, BrushKind::Oil | BrushKind::Watercolor) {
             return IRect::EMPTY;
         }
-        let (Some(last), Some(prev)) = (self.last, self.prev) else { return IRect::EMPTY };
-        let (a, b) = (self.center(prev.0, prev.1), self.center(last.0, last.1));
+        let (Some(b), Some(a)) = (self.last_c, self.prev_c) else { return IRect::EMPTY };
         let len = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
         self.travelled -= len;
         let r = self.band_ex(a, b, Some((self.size as f32 * 0.15).max(2.0)));

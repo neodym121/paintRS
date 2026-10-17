@@ -14,6 +14,7 @@ use crate::canvas::{self, CanvasDraw, CanvasView};
 use crate::color_dialog::ColorDialog;
 use crate::i18n::Tr;
 use crate::settings::Settings;
+use crate::shapes::{Draft, ShapeSettings};
 use crate::theme::{self, Palette, ThemeMode};
 use crate::tools::{self, ActiveStroke, SliderId, ToolSettings};
 
@@ -79,6 +80,11 @@ pub struct Editor {
     /// Tool to return to after a single color pick.
     pub(crate) prev_tool: Tool,
     pub(crate) stroke: Option<ActiveStroke>,
+    pub(crate) shape_settings: ShapeSettings,
+    /// The shape being drawn or edited (not yet part of the layer's history).
+    pub(crate) draft: Option<Draft>,
+    /// Button that started the current shape gesture.
+    pub(crate) shape_button: Option<egui::PointerButton>,
     pub(crate) focused_slider: Option<SliderId>,
     pub(crate) color_dialog: Option<ColorDialog>,
     /// Custom colors of the "Edit colors" dialog (kept for the session, like the original).
@@ -129,6 +135,9 @@ impl Editor {
             tool_settings: ToolSettings::default(),
             prev_tool: Tool::default(),
             stroke: None,
+            shape_settings: ShapeSettings::default(),
+            draft: None,
+            shape_button: None,
             focused_slider: None,
             color_dialog: None,
             dialog_custom: [None; 24],
@@ -213,6 +222,7 @@ impl Editor {
 
     pub(crate) fn run_pending(&mut self, action: Pending) {
         self.end_stroke();
+        self.commit_draft();
         match action {
             Pending::New => self.new_document(),
             Pending::Open(path) => {
@@ -286,6 +296,7 @@ impl Editor {
 
     /// Saves to the current path; returns false if the user cancelled or saving failed.
     pub(crate) fn save(&mut self) -> bool {
+        self.commit_draft();
         match self.path.clone() {
             Some(path) if io::Format::from_path(&path) == Some(io::Format::Png) => self.save_to(&path),
             _ => self.save_as(io::Format::Png),
@@ -351,10 +362,16 @@ impl Editor {
             }
             Action::Undo => {
                 self.end_stroke();
-                self.history.undo(&mut self.doc);
+                // Undo on a draft shape just drops the draft.
+                if self.draft.is_some() {
+                    self.cancel_draft();
+                } else {
+                    self.history.undo(&mut self.doc);
+                }
             }
             Action::Redo => {
                 self.end_stroke();
+                self.commit_draft();
                 self.history.redo(&mut self.doc);
             }
             Action::Zoom100 => self.view.zoom_to(1.0, None, image, ppp),
@@ -398,6 +415,7 @@ impl Editor {
             return;
         }
         self.end_stroke();
+        self.commit_draft();
         if tool == Tool::Picker {
             self.prev_tool = self.tool;
         }
@@ -489,6 +507,7 @@ impl Editor {
                 .show(ui, |ui| self.status_bar(ui));
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
+            self.refresh_draft();
             self.sync_canvas();
             let draw = CanvasDraw {
                 palette: p,
